@@ -1,0 +1,131 @@
+# Yjs Collaborative Text Editor
+
+This is a real-time collaborative text editor built with React, CodeMirror 6, Yjs, and a Node WebSocket sync server. It is a learning-focused project for understanding WebSocket architecture, awareness/presence, and CRDT-based synchronization. It is not a code execution sandbox and intentionally does not include code execution, authentication, or user accounts.
+
+Yjs represents shared document changes as CRDT updates, which means clients can apply edits in different orders and still converge on the same document state. The `y-websocket` server relays those updates and awareness messages between clients, while Postgres stores the encoded Yjs document state so rooms can recover after a server restart.
+
+## Current State
+
+The MVP is implemented and builds successfully.
+
+- Landing page at `/` for creating or joining rooms.
+- Editor route at `/room/:roomId`.
+- CodeMirror 6 editor bound to a shared `Y.Text`.
+- `y-websocket` server using `setupWSConnection` from `y-websocket/bin/utils`.
+- Room API with `POST /api/rooms`, `GET /api/rooms/:id`, and `/health`.
+- Postgres persistence for encoded Yjs document state in a `documents` table.
+- Debounced document saves after edits.
+- Yjs awareness presence with generated anonymous names and colored avatars.
+- Copyable room ID and share URL controls.
+
+Known local requirement: the backend needs Postgres running and `DATABASE_URL` pointed at a valid database before `npm run dev` can start successfully.
+
+## Tech Stack
+
+- Backend: Node.js, Express, `ws`, `y-websocket`, `yjs`, `pg`, CORS.
+- Frontend: React 18, Vite, Tailwind CSS, CodeMirror 6, `y-codemirror.next`, `y-websocket`, `react-router-dom`.
+- Database: Postgres storing Yjs document state as `BYTEA`.
+
+## Project Structure
+
+```txt
+server/
+  index.js
+  db.js
+  package.json
+client/
+  src/
+    App.jsx
+    components/
+      Editor.jsx
+      RoomLanding.jsx
+      UserPresence.jsx
+    hooks/
+      useYjsDoc.js
+    api/
+      client.js
+```
+
+## Setup
+
+Install dependencies:
+
+```sh
+cd server
+npm install
+
+cd ../client
+npm install
+```
+
+Create the Postgres database:
+
+```sh
+createdb collab_editor
+```
+
+Copy the example env files:
+
+```sh
+cp server/.env.example server/.env
+cp client/.env.example client/.env
+```
+
+Update `server/.env` if your Postgres username, password, host, port, or database name is different:
+
+```sh
+PORT=3001
+WS_PORT=1234
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/collab_editor
+```
+
+The default client env points at the local backend:
+
+```sh
+VITE_WS_URL=ws://localhost:1234
+VITE_API_URL=http://localhost:3001
+```
+
+Start the backend in one terminal:
+
+```sh
+cd server
+npm run dev
+```
+
+Start the frontend in another terminal:
+
+```sh
+cd client
+npm run dev
+```
+
+Open the Vite URL, usually `http://localhost:5173`.
+
+## Test Collaboration
+
+Open the Vite URL in your browser, create a new room, then open the same room URL in a second tab. Type in either tab and the other tab should update in real time. The top bar shows connection status, the room ID, a share button, and connected users through Yjs awareness.
+
+## Verification
+
+These checks pass in the current codebase:
+
+```sh
+cd client
+npm run build
+npm run lint
+
+cd ../server
+node --check index.js
+node --check db.js
+```
+
+The backend live server was not fully exercised in this workspace because local Postgres was not running on `localhost:5432`. Once Postgres is running and the database exists, `npm run dev` in `server/` will create the `documents` table automatically.
+
+## Out of Scope
+
+- Code execution.
+- Syntax highlighting beyond CodeMirror defaults.
+- User authentication.
+- Permissions or private rooms.
+- Production scaling beyond a single WebSocket server.
