@@ -1,12 +1,12 @@
-# Yjs Collaborative Text Editor
+# CODE Colaborator
 
-This is a real-time collaborative text editor built with React, CodeMirror 6, Yjs, and a Node WebSocket sync server. It is a learning-focused project for understanding WebSocket architecture, awareness/presence, and CRDT-based synchronization. It is not a code execution sandbox and intentionally does not include code execution, authentication, or user accounts.
+CODE Colaborator is a real-time collaborative text editor built with React, CodeMirror 6, Yjs, and a Node WebSocket sync server. It is a learning-focused project for understanding WebSocket architecture, awareness/presence, and CRDT-based synchronization. It is not a code execution sandbox and intentionally does not include code execution, authentication, or user accounts.
 
 Yjs represents shared document changes as CRDT updates, which means clients can apply edits in different orders and still converge on the same document state. The `y-websocket` server relays those updates and awareness messages between clients, while Postgres stores the encoded Yjs document state so rooms can recover after a server restart.
 
-## Current State
+## Current App State
 
-The MVP is implemented and builds successfully.
+The MVP is implemented, committed to Git, and builds successfully for local development.
 
 - Landing page at `/` for creating or joining rooms.
 - Editor route at `/room/:roomId`.
@@ -19,6 +19,8 @@ The MVP is implemented and builds successfully.
 - Copyable room ID and share URL controls.
 
 Known local requirement: the backend needs Postgres running and `DATABASE_URL` pointed at a valid database before `npm run dev` can start successfully.
+
+Deployment status: not deployed yet. The app is currently meant to run locally with one Vite dev server, one Node API/WebSocket server, and a local or remote Postgres database.
 
 ## Tech Stack
 
