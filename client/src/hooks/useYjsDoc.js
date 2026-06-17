@@ -3,10 +3,12 @@ import { basicSetup } from 'codemirror'
 import { EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import * as Y from 'yjs'
+import * as awarenessProtocol from 'y-protocols/awareness'
 import { WebsocketProvider } from 'y-websocket'
 import { yCollab } from 'y-codemirror.next'
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:1234'
+const TAB_ID_STORAGE_KEY = 'code-colaborator-tab-id'
 
 const COLORS = [
   { color: '#22d3ee', colorLight: '#22d3ee33' },
@@ -32,19 +34,48 @@ const NAMES = [
 
 const randomItem = (items) => items[Math.floor(Math.random() * items.length)]
 
+const getBrowserTabId = () => {
+  const existingId = window.sessionStorage.getItem(TAB_ID_STORAGE_KEY)
+
+  if (existingId) {
+    return existingId
+  }
+
+  const nextId =
+    crypto.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  window.sessionStorage.setItem(TAB_ID_STORAGE_KEY, nextId)
+  return nextId
+}
+
 const createUser = () => ({
   name: `${randomItem(NAMES)} ${Math.floor(100 + Math.random() * 900)}`,
+  tabId: getBrowserTabId(),
   ...randomItem(COLORS),
 })
 
+const pruneDuplicateTabStates = (awareness, localClientId, tabId) => {
+  const duplicateClientIds = []
+
+  awareness.getStates().forEach((state, clientId) => {
+    if (clientId !== localClientId && state.user?.tabId === tabId) {
+      duplicateClientIds.push(clientId)
+    }
+  })
+
+  if (duplicateClientIds.length > 0) {
+    awarenessProtocol.removeAwarenessStates(awareness, duplicateClientIds, 'duplicate-tab')
+  }
+}
+
 const readAwarenessUsers = (awareness, localClientId) =>
   Array.from(awareness.getStates().entries())
+    .filter(([, state]) => state.user)
     .map(([clientId, state]) => ({
       clientId,
       isLocal: clientId === localClientId,
-      name: state.user?.name || 'Anonymous User',
-      color: state.user?.color || '#22d3ee',
-      colorLight: state.user?.colorLight || '#22d3ee33',
+      name: state.user.name || 'Anonymous User',
+      color: state.user.color || '#22d3ee',
+      colorLight: state.user.colorLight || '#22d3ee33',
     }))
     .sort((a, b) => Number(b.isLocal) - Number(a.isLocal) || a.name.localeCompare(b.name))
 
@@ -68,6 +99,10 @@ export const useYjsDoc = (roomId, editorParentRef) => {
     const undoManager = new Y.UndoManager(ytext)
 
     websocketProvider.awareness.setLocalStateField('user', localUser)
+
+    const leaveRoom = () => {
+      websocketProvider.awareness.setLocalState(null)
+    }
 
     const editorState = EditorState.create({
       doc: ytext.toString(),
@@ -117,7 +152,15 @@ export const useYjsDoc = (roomId, editorParentRef) => {
       parent: parentElement,
     })
 
+    let isPruningDuplicateStates = false
+
     const syncUsers = () => {
+      if (!isPruningDuplicateStates) {
+        isPruningDuplicateStates = true
+        pruneDuplicateTabStates(websocketProvider.awareness, doc.clientID, localUser.tabId)
+        isPruningDuplicateStates = false
+      }
+
       setConnectedUsers(readAwarenessUsers(websocketProvider.awareness, doc.clientID))
     }
 
@@ -133,6 +176,8 @@ export const useYjsDoc = (roomId, editorParentRef) => {
 
     websocketProvider.awareness.on('change', syncUsers)
     websocketProvider.on('status', handleStatus)
+    window.addEventListener('pagehide', leaveRoom)
+    window.addEventListener('beforeunload', leaveRoom)
 
     syncUsers()
     setYdoc(doc)
@@ -141,7 +186,10 @@ export const useYjsDoc = (roomId, editorParentRef) => {
     return () => {
       websocketProvider.awareness.off('change', syncUsers)
       websocketProvider.off('status', handleStatus)
+      window.removeEventListener('pagehide', leaveRoom)
+      window.removeEventListener('beforeunload', leaveRoom)
       editorView.destroy()
+      leaveRoom()
       websocketProvider.destroy()
       undoManager.destroy()
       doc.destroy()

@@ -3,8 +3,9 @@ require('dotenv').config()
 const http = require('node:http')
 const cors = require('cors')
 const express = require('express')
+const awarenessProtocol = require('y-protocols/dist/awareness.cjs')
 const { WebSocketServer } = require('ws')
-const { setupWSConnection, setPersistence } = require('y-websocket/bin/utils')
+const { getYDoc, setupWSConnection, setPersistence } = require('y-websocket/bin/utils')
 const {
   createPostgresPersistence,
   createRoom,
@@ -15,6 +16,7 @@ const {
 
 const API_PORT = Number(process.env.PORT || 3001)
 const WS_PORT = Number(process.env.WS_PORT || 1234)
+const WS_HEARTBEAT_INTERVAL_MS = Number(process.env.WS_HEARTBEAT_INTERVAL_MS || 2000)
 
 const app = express()
 
@@ -52,6 +54,32 @@ const apiServer = http.createServer(app)
 const websocketServer = http.createServer()
 const wss = new WebSocketServer({ server: websocketServer })
 
+const cleanupConnectionAwareness = (connection, doc) => {
+  const controlledIds = doc.conns.get(connection)
+
+  if (!controlledIds || controlledIds.size === 0) {
+    return
+  }
+
+  awarenessProtocol.removeAwarenessStates(doc.awareness, Array.from(controlledIds), null)
+}
+
+const heartbeatInterval = setInterval(() => {
+  wss.clients.forEach((connection) => {
+    if (!connection.isAlive) {
+      if (connection.collabDoc) {
+        cleanupConnectionAwareness(connection, connection.collabDoc)
+      }
+
+      connection.terminate()
+      return
+    }
+
+    connection.isAlive = false
+    connection.ping()
+  })
+}, WS_HEARTBEAT_INTERVAL_MS)
+
 wss.on('connection', (connection, request) => {
   const requestUrl = new URL(request.url || '/', `http://${request.headers.host}`)
   const docName = decodeURIComponent(requestUrl.pathname.slice(1))
@@ -62,6 +90,17 @@ wss.on('connection', (connection, request) => {
   }
 
   setupWSConnection(connection, request, { docName })
+  const doc = getYDoc(docName)
+  connection.collabDoc = doc
+  connection.isAlive = true
+
+  connection.on('pong', () => {
+    connection.isAlive = true
+  })
+
+  connection.prependOnceListener('close', () => {
+    cleanupConnectionAwareness(connection, doc)
+  })
 })
 
 const start = async () => {
@@ -78,6 +117,7 @@ const start = async () => {
 }
 
 const shutdown = () => {
+  clearInterval(heartbeatInterval)
   apiServer.close()
   websocketServer.close()
   pool.end().finally(() => process.exit(0))
