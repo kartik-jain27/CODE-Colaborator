@@ -20,7 +20,7 @@ The MVP is implemented, committed to Git, and builds successfully for local deve
 
 Known local requirement: the backend needs Postgres running and `DATABASE_URL` pointed at a valid database before `npm run dev` can start successfully.
 
-Deployment status: backend-ready for Railway. The app is currently meant to run locally with one Vite dev server, one Node API/WebSocket server, and a local or remote Postgres database.
+Deployment status: backend-ready for Railway when the Railway service root directory is set to `server`. The app is currently meant to run locally with one Vite dev server, one Node API/WebSocket server, and a local or remote Postgres database.
 
 ## Tech Stack
 
@@ -125,7 +125,20 @@ The backend live server was not fully exercised in this workspace because local 
 
 ## Railway Backend Deployment
 
-This repo includes `railway.json` and a root `package.json` so Railway can build the backend even though the Node service lives in `server/`.
+Deploy the backend as a Railway service with the service **Root Directory** set to:
+
+```txt
+server
+```
+
+With that root directory, Railway will build from `server/package.json` and run the backend app directly.
+
+Use these commands if Railway asks for explicit commands:
+
+```sh
+npm ci --omit=dev
+npm start
+```
 
 Set these Railway variables on the backend service:
 
