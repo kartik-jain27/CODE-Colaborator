@@ -7,7 +7,7 @@ import * as awarenessProtocol from 'y-protocols/awareness'
 import { WebsocketProvider } from 'y-websocket'
 import { yCollab } from 'y-codemirror.next'
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:1234'
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001'
 const TAB_ID_STORAGE_KEY = 'code-colaborator-tab-id'
 
 const COLORS = [

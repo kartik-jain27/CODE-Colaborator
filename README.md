@@ -20,7 +20,7 @@ The MVP is implemented, committed to Git, and builds successfully for local deve
 
 Known local requirement: the backend needs Postgres running and `DATABASE_URL` pointed at a valid database before `npm run dev` can start successfully.
 
-Deployment status: not deployed yet. The app is currently meant to run locally with one Vite dev server, one Node API/WebSocket server, and a local or remote Postgres database.
+Deployment status: backend-ready for Railway. The app is currently meant to run locally with one Vite dev server, one Node API/WebSocket server, and a local or remote Postgres database.
 
 ## Tech Stack
 
@@ -77,15 +77,14 @@ Update `server/.env` if your Postgres username, password, host, port, or databas
 
 ```sh
 PORT=3001
-WS_PORT=1234
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/collab_editor
 ```
 
-The default client env points at the local backend:
+The default client env points HTTP and WebSocket traffic at the same backend port:
 
 ```sh
-VITE_WS_URL=ws://localhost:1234
 VITE_API_URL=http://localhost:3001
+VITE_WS_URL=ws://localhost:3001
 ```
 
 Start the backend in one terminal:
@@ -123,6 +122,26 @@ node --check db.js
 ```
 
 The backend live server was not fully exercised in this workspace because local Postgres was not running on `localhost:5432`. Once Postgres is running and the database exists, `npm run dev` in `server/` will create the `documents` table automatically.
+
+## Railway Backend Deployment
+
+This repo includes `railway.json` and a root `package.json` so Railway can build the backend even though the Node service lives in `server/`.
+
+Set these Railway variables on the backend service:
+
+```sh
+DATABASE_URL=<your Railway or Neon Postgres connection string>
+NODE_ENV=production
+```
+
+Railway provides `PORT` automatically. Do not set `WS_PORT`; the Express API and Yjs WebSocket server share the single Railway service port.
+
+After deployment, use the generated Railway domain for both client variables:
+
+```sh
+VITE_API_URL=https://your-backend.up.railway.app
+VITE_WS_URL=wss://your-backend.up.railway.app
+```
 
 ## Out of Scope
 

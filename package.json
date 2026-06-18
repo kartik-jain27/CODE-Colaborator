@@ -1,0 +1,15 @@
+{
+  "name": "code-colaborator",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Railway entrypoint for the CODE Colaborator backend service.",
+  "scripts": {
+    "build": "npm run railway:build",
+    "start": "npm run railway:start",
+    "railway:build": "cd server && npm ci --omit=dev",
+    "railway:start": "node server/index.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

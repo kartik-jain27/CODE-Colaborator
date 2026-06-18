@@ -1,6 +1,5 @@
-require('dotenv').config()
-
 const http = require('node:http')
+const path = require('node:path')
 const cors = require('cors')
 const express = require('express')
 const awarenessProtocol = require('y-protocols/dist/awareness.cjs')
@@ -14,8 +13,9 @@ const {
   roomExists,
 } = require('./db')
 
-const API_PORT = Number(process.env.PORT || 3001)
-const WS_PORT = Number(process.env.WS_PORT || 1234)
+require('dotenv').config({ path: path.resolve(__dirname, '.env') })
+
+const PORT = Number(process.env.PORT || 3001)
 const WS_HEARTBEAT_INTERVAL_MS = Number(process.env.WS_HEARTBEAT_INTERVAL_MS || 2000)
 
 const app = express()
@@ -50,9 +50,8 @@ app.use((error, _req, res, _next) => {
   res.status(500).json({ error: 'Internal server error' })
 })
 
-const apiServer = http.createServer(app)
-const websocketServer = http.createServer()
-const wss = new WebSocketServer({ server: websocketServer })
+const server = http.createServer(app)
+const wss = new WebSocketServer({ noServer: true })
 
 const cleanupConnectionAwareness = (connection, doc) => {
   const controlledIds = doc.conns.get(connection)
@@ -103,23 +102,33 @@ wss.on('connection', (connection, request) => {
   })
 })
 
+server.on('upgrade', (request, socket, head) => {
+  const requestUrl = new URL(request.url || '/', `http://${request.headers.host}`)
+
+  if (!requestUrl.pathname || requestUrl.pathname.startsWith('/api')) {
+    socket.destroy()
+    return
+  }
+
+  wss.handleUpgrade(request, socket, head, (connection) => {
+    wss.emit('connection', connection, request)
+  })
+})
+
 const start = async () => {
   await initDb()
   setPersistence(createPostgresPersistence())
 
-  apiServer.listen(API_PORT, () => {
-    console.log(`HTTP API listening on http://localhost:${API_PORT}`)
-  })
-
-  websocketServer.listen(WS_PORT, () => {
-    console.log(`Yjs WebSocket server listening on ws://localhost:${WS_PORT}`)
+  server.listen(PORT, () => {
+    console.log(`HTTP API listening on http://localhost:${PORT}`)
+    console.log(`Yjs WebSocket server listening on ws://localhost:${PORT}`)
   })
 }
 
 const shutdown = () => {
   clearInterval(heartbeatInterval)
-  apiServer.close()
-  websocketServer.close()
+  wss.close()
+  server.close()
   pool.end().finally(() => process.exit(0))
 }
 
