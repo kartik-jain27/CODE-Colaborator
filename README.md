@@ -20,7 +20,7 @@ The MVP is implemented, committed to Git, and builds successfully for local deve
 
 Known local requirement: the backend needs Postgres running and `DATABASE_URL` pointed at a valid database before `npm run dev` can start successfully.
 
-Deployment status: backend-ready for Railway when the Railway service root directory is set to `server`. The app is currently meant to run locally with one Vite dev server, one Node API/WebSocket server, and a local or remote Postgres database.
+Deployment status: deployed with the backend on Railway and the frontend on Vercel.
 
 ## Tech Stack
 
@@ -121,7 +121,19 @@ node --check index.js
 node --check db.js
 ```
 
-The backend live server was not fully exercised in this workspace because local Postgres was not running on `localhost:5432`. Once Postgres is running and the database exists, `npm run dev` in `server/` will create the `documents` table automatically.
+Production smoke test:
+
+```sh
+curl https://code-colaborator-production.up.railway.app/health
+```
+
+Expected response:
+
+```json
+{"ok":true}
+```
+
+Then open the Vercel app, create a room, open the same room URL in another tab, and confirm edits sync both ways.
 
 ## Railway Backend Deployment
 
@@ -152,9 +164,33 @@ Railway provides `PORT` automatically. Do not set `WS_PORT`; the Express API and
 After deployment, use the generated Railway domain for both client variables:
 
 ```sh
-VITE_API_URL=https://your-backend.up.railway.app
-VITE_WS_URL=wss://your-backend.up.railway.app
+VITE_API_URL=https://code-colaborator-production.up.railway.app
+VITE_WS_URL=wss://code-colaborator-production.up.railway.app
 ```
+
+## Vercel Frontend Deployment
+
+Deploy the frontend as a Vercel project with the project **Root Directory** set to:
+
+```txt
+client
+```
+
+Use the Vite defaults:
+
+```sh
+npm run build
+dist
+```
+
+Set these Vercel environment variables for Production and Preview:
+
+```sh
+VITE_API_URL=https://code-colaborator-production.up.railway.app
+VITE_WS_URL=wss://code-colaborator-production.up.railway.app
+```
+
+The client includes `client/vercel.json` so direct visits and refreshes on room URLs like `/room/:roomId` rewrite to `index.html`.
 
 ## Out of Scope
 
