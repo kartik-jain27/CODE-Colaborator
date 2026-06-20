@@ -5,6 +5,9 @@ const express = require('express')
 const awarenessProtocol = require('y-protocols/dist/awareness.cjs')
 const { WebSocketServer } = require('ws')
 const { getYDoc, setupWSConnection, setPersistence } = require('y-websocket/bin/utils')
+
+require('dotenv').config({ path: path.resolve(__dirname, '.env') })
+
 const {
   createPostgresPersistence,
   createRoom,
@@ -12,8 +15,6 @@ const {
   pool,
   roomExists,
 } = require('./db')
-
-require('dotenv').config({ path: path.resolve(__dirname, '.env') })
 
 const PORT = Number(process.env.PORT || 3001)
 const WS_HEARTBEAT_INTERVAL_MS = Number(process.env.WS_HEARTBEAT_INTERVAL_MS || 2000)

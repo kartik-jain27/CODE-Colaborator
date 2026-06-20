@@ -8,6 +8,10 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
 })
 
+pool.on('error', (error) => {
+  console.error('Unexpected Postgres client error', error)
+})
+
 const emptyDocumentState = () => {
   const ydoc = new Y.Doc()
   const state = Buffer.from(Y.encodeStateAsUpdate(ydoc))
