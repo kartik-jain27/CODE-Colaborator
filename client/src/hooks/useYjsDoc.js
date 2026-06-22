@@ -47,8 +47,8 @@ const getBrowserTabId = () => {
   return nextId
 }
 
-const createUser = () => ({
-  name: `${randomItem(NAMES)} ${Math.floor(100 + Math.random() * 900)}`,
+const createUser = (preferredName) => ({
+  name: preferredName || `${randomItem(NAMES)} ${Math.floor(100 + Math.random() * 900)}`,
   tabId: getBrowserTabId(),
   ...randomItem(COLORS),
 })
@@ -79,78 +79,34 @@ const readAwarenessUsers = (awareness, localClientId) =>
     }))
     .sort((a, b) => Number(b.isLocal) - Number(a.isLocal) || a.name.localeCompare(b.name))
 
-export const useYjsDoc = (roomId, editorParentRef) => {
-  const localUser = useMemo(() => createUser(), [])
+export const useYjsDoc = (
+  roomId,
+  editorParentRef,
+  { activeDocument = 'codemirror', documentNames = ['codemirror'], userName } = {},
+) => {
+  const localUser = useMemo(() => createUser(userName), [userName])
+  const documentNamesKey = documentNames.join('|')
   const [ydoc, setYdoc] = useState(null)
   const [provider, setProvider] = useState(null)
   const [connectionStatus, setConnectionStatus] = useState('Connecting')
   const [connectedUsers, setConnectedUsers] = useState([])
+  const [documentText, setDocumentText] = useState('')
+  const [documentTexts, setDocumentTexts] = useState({})
 
   useEffect(() => {
-    const parentElement = editorParentRef.current
-
-    if (!roomId || !parentElement) {
+    if (!roomId) {
       return undefined
     }
 
     const doc = new Y.Doc()
     const websocketProvider = new WebsocketProvider(WS_URL, roomId, doc)
-    const ytext = doc.getText('codemirror')
-    const undoManager = new Y.UndoManager(ytext)
+    let isDisposed = false
 
     websocketProvider.awareness.setLocalStateField('user', localUser)
 
     const leaveRoom = () => {
       websocketProvider.awareness.setLocalState(null)
     }
-
-    const editorState = EditorState.create({
-      doc: ytext.toString(),
-      extensions: [
-        basicSetup,
-        yCollab(ytext, websocketProvider.awareness, { undoManager }),
-        EditorView.lineWrapping,
-        EditorView.theme({
-          '&': {
-            height: '100%',
-            backgroundColor: '#111113',
-            color: '#f4f4f5',
-            fontSize: '15px',
-          },
-          '.cm-scroller': {
-            fontFamily:
-              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
-            lineHeight: '1.65',
-          },
-          '.cm-content': {
-            padding: '24px',
-            caretColor: '#22d3ee',
-          },
-          '.cm-gutters': {
-            backgroundColor: '#18181b',
-            color: '#71717a',
-            borderRight: '1px solid #27272a',
-          },
-          '.cm-activeLine': {
-            backgroundColor: '#1f293733',
-          },
-          '.cm-activeLineGutter': {
-            backgroundColor: '#27272a',
-          },
-          '.cm-selectionBackground': {
-            backgroundColor: '#0e749033 !important',
-          },
-          '&.cm-focused': {
-            outline: 'none',
-          },
-        }),
-      ],
-    })
-
-    const editorView = new EditorView({
-      state: editorState,
-      parent: parentElement,
-    })
 
     let isPruningDuplicateStates = false
 
@@ -180,25 +136,146 @@ export const useYjsDoc = (roomId, editorParentRef) => {
     window.addEventListener('beforeunload', leaveRoom)
 
     syncUsers()
-    setYdoc(doc)
-    setProvider(websocketProvider)
+    queueMicrotask(() => {
+      if (!isDisposed) {
+        setYdoc(doc)
+        setProvider(websocketProvider)
+      }
+    })
 
     return () => {
+      isDisposed = true
       websocketProvider.awareness.off('change', syncUsers)
       websocketProvider.off('status', handleStatus)
       window.removeEventListener('pagehide', leaveRoom)
       window.removeEventListener('beforeunload', leaveRoom)
-      editorView.destroy()
       leaveRoom()
       websocketProvider.destroy()
-      undoManager.destroy()
       doc.destroy()
       setYdoc(null)
       setProvider(null)
       setConnectedUsers([])
+      setDocumentText('')
+      setDocumentTexts({})
       setConnectionStatus('Disconnected')
     }
-  }, [editorParentRef, localUser, roomId])
+  }, [localUser, roomId])
 
-  return { ydoc, provider, connectionStatus, connectedUsers }
+  useEffect(() => {
+    if (!ydoc || !provider) {
+      return undefined
+    }
+
+    const parentElement = editorParentRef.current
+
+    if (!parentElement) {
+      return undefined
+    }
+
+    const ytext = ydoc.getText(activeDocument)
+    const undoManager = new Y.UndoManager(ytext)
+
+    const editorState = EditorState.create({
+      doc: ytext.toString(),
+      extensions: [
+        basicSetup,
+        yCollab(ytext, provider.awareness, { undoManager }),
+        EditorView.lineWrapping,
+        EditorView.theme({
+          '&': {
+            height: '100%',
+            backgroundColor: '#111113',
+            color: '#f4f4f5',
+            fontSize: '15px',
+          },
+          '.cm-scroller': {
+            fontFamily:
+              'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
+            lineHeight: '1.65',
+          },
+          '.cm-content': {
+            padding: '24px',
+            caretColor: '#22d3ee',
+          },
+          '.cm-cursor, .cm-dropCursor': {
+            borderLeftColor: '#22d3ee !important',
+            borderLeftWidth: '2px',
+          },
+          '&.cm-focused .cm-cursor': {
+            borderLeftColor: '#22d3ee !important',
+          },
+          '.cm-gutters': {
+            backgroundColor: '#18181b',
+            color: '#71717a',
+            borderRight: '1px solid #27272a',
+          },
+          '.cm-activeLine': {
+            backgroundColor: '#1f293733',
+          },
+          '.cm-activeLineGutter': {
+            backgroundColor: '#27272a',
+          },
+          '.cm-selectionBackground': {
+            backgroundColor: '#0e749033 !important',
+          },
+          '.cm-ySelectionCaret': {
+            borderLeftWidth: '2px',
+            borderRightWidth: '0',
+            minHeight: '1.35em',
+            zIndex: '20',
+          },
+          '.cm-ySelectionCaretDot': {
+            width: '.55em',
+            height: '.55em',
+            top: '-.3em',
+            left: '-.28em',
+          },
+          '.cm-ySelectionInfo': {
+            borderRadius: '4px',
+            fontFamily:
+              'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+            fontSize: '11px',
+            padding: '2px 5px',
+          },
+          '&.cm-focused': {
+            outline: 'none',
+          },
+        }),
+      ],
+    })
+
+    const editorView = new EditorView({
+      state: editorState,
+      parent: parentElement,
+    })
+
+    return () => {
+      editorView.destroy()
+      undoManager.destroy()
+    }
+  }, [activeDocument, editorParentRef, provider, ydoc])
+
+  useEffect(() => {
+    if (!ydoc) {
+      return undefined
+    }
+
+    const names = documentNamesKey ? documentNamesKey.split('|') : ['codemirror']
+    const ytexts = names.map((name) => ydoc.getText(name))
+
+    const syncDocumentTexts = () => {
+      const nextTexts = Object.fromEntries(names.map((name) => [name, ydoc.getText(name).toString()]))
+      setDocumentTexts(nextTexts)
+      setDocumentText(nextTexts[activeDocument] || '')
+    }
+
+    ytexts.forEach((ytext) => ytext.observe(syncDocumentTexts))
+    syncDocumentTexts()
+
+    return () => {
+      ytexts.forEach((ytext) => ytext.unobserve(syncDocumentTexts))
+    }
+  }, [activeDocument, documentNamesKey, ydoc])
+
+  return { ydoc, provider, connectionStatus, connectedUsers, documentText, documentTexts }
 }

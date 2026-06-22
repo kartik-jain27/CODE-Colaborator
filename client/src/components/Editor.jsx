@@ -1,6 +1,15 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { getRoom } from '../api/client'
 import { useYjsDoc } from '../hooks/useYjsDoc'
+import {
+  getDocumentNamesForLanguage,
+  getLanguageLabel,
+  HTML_DOCUMENT_TABS,
+  SINGLE_DOCUMENT_ID,
+  USER_NAME_STORAGE_KEY,
+} from '../lib/languages'
+import OutputPanel from './OutputPanel'
 import UserPresence from './UserPresence'
 
 const statusClasses = {
@@ -12,8 +21,47 @@ const statusClasses = {
 function Editor() {
   const { roomId } = useParams()
   const editorParentRef = useRef(null)
-  const { connectionStatus, connectedUsers } = useYjsDoc(roomId, editorParentRef)
+  const [room, setRoom] = useState({ language: 'html' })
+  const [activeDocument, setActiveDocument] = useState('html')
+  const [userName] = useState(() => localStorage.getItem(USER_NAME_STORAGE_KEY) || '')
+  const documentNames = getDocumentNamesForLanguage(room.language)
+  const resolvedActiveDocument =
+    room.language === 'html' && HTML_DOCUMENT_TABS.some((tab) => tab.id === activeDocument)
+      ? activeDocument
+      : SINGLE_DOCUMENT_ID
+  const { connectionStatus, connectedUsers, documentText, documentTexts } = useYjsDoc(roomId, editorParentRef, {
+    activeDocument: resolvedActiveDocument,
+    documentNames,
+    userName,
+  })
   const [copyState, setCopyState] = useState('')
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadRoom = async () => {
+      try {
+        const roomData = await getRoom(roomId)
+        if (isMounted) {
+          setRoom({
+            language: roomData.language || 'html',
+          })
+          setActiveDocument(roomData.language === 'html' ? 'html' : SINGLE_DOCUMENT_ID)
+        }
+      } catch {
+        if (isMounted) {
+          setRoom({ language: 'html' })
+          setActiveDocument('html')
+        }
+      }
+    }
+
+    loadRoom()
+
+    return () => {
+      isMounted = false
+    }
+  }, [roomId])
 
   const copyText = async (text, label) => {
     if (navigator.clipboard) {
@@ -52,6 +100,7 @@ function Editor() {
           >
             {roomId}
           </button>
+          <span className="hidden text-sm text-zinc-500 sm:inline">{getLanguageLabel(room.language)}</span>
           <div className="flex items-center gap-2 text-sm text-zinc-300">
             <span className={`h-2.5 w-2.5 rounded-full ${statusClasses[connectionStatus]}`} />
             {connectionStatus}
@@ -76,8 +125,33 @@ function Editor() {
         </div>
       ) : null}
 
-      <section className="min-h-0 flex-1">
-        <div className="h-full" ref={editorParentRef} />
+      <section className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_minmax(260px,40dvh)] lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:grid-rows-1">
+        <div className="flex min-h-0 flex-col">
+          {room.language === 'html' ? (
+            <div className="flex h-11 shrink-0 items-center gap-1 border-b border-zinc-800 bg-zinc-950 px-3">
+              {HTML_DOCUMENT_TABS.map((tab) => (
+                <button
+                  className={`h-8 rounded px-3 text-sm font-medium transition ${
+                    activeDocument === tab.id
+                      ? 'bg-zinc-800 text-zinc-50'
+                      : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100'
+                  }`}
+                  key={tab.id}
+                  onClick={() => setActiveDocument(tab.id)}
+                  type="button"
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="min-h-0 flex-1" ref={editorParentRef} />
+        </div>
+        <OutputPanel
+          code={room.language === 'html' ? documentTexts.html || '' : documentTexts[SINGLE_DOCUMENT_ID] || documentText}
+          files={documentTexts}
+          language={room.language}
+        />
       </section>
     </main>
   )

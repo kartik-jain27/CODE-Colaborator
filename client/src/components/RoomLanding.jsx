@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createRoom, getRoom } from '../api/client'
+import CreateRoomModal from './CreateRoomModal'
+import { USER_NAME_STORAGE_KEY } from '../lib/languages'
 
 const extractRoomId = (value) => {
   const trimmed = value.trim()
@@ -21,16 +23,38 @@ const extractRoomId = (value) => {
 function RoomLanding() {
   const navigate = useNavigate()
   const [roomInput, setRoomInput] = useState('')
+  const [userName, setUserName] = useState(() => localStorage.getItem(USER_NAME_STORAGE_KEY) || '')
+  const [language, setLanguage] = useState('html')
   const [error, setError] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [isJoining, setIsJoining] = useState(false)
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
 
-  const handleCreateRoom = async () => {
+  const persistUserName = (name) => {
+    const trimmedName = name.trim()
+
+    if (trimmedName) {
+      localStorage.setItem(USER_NAME_STORAGE_KEY, trimmedName)
+    }
+
+    return trimmedName
+  }
+
+  const handleCreateRoom = async (event) => {
+    event.preventDefault()
+
+    const trimmedUserName = persistUserName(userName)
+
+    if (!trimmedUserName) {
+      setError('Enter your name.')
+      return
+    }
+
     setError('')
     setIsCreating(true)
 
     try {
-      const { roomId } = await createRoom()
+      const { roomId } = await createRoom({ language })
       navigate(`/room/${roomId}`)
     } catch (caughtError) {
       setError(caughtError.message)
@@ -43,9 +67,15 @@ function RoomLanding() {
     event.preventDefault()
 
     const roomId = extractRoomId(roomInput)
+    const trimmedUserName = persistUserName(userName)
 
     if (!roomId) {
       setError('Enter a room ID to join.')
+      return
+    }
+
+    if (!trimmedUserName) {
+      setError('Enter your name.')
       return
     }
 
@@ -81,10 +111,13 @@ function RoomLanding() {
             <button
               className="inline-flex h-12 items-center justify-center rounded bg-cyan-500 px-6 text-base font-semibold text-zinc-950 transition hover:bg-cyan-400 focus:outline-none focus:ring-2 focus:ring-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
               disabled={isCreating}
-              onClick={handleCreateRoom}
+              onClick={() => {
+                setError('')
+                setIsCreateModalOpen(true)
+              }}
               type="button"
             >
-              {isCreating ? 'Creating...' : 'Create New Room'}
+              Create New Room
             </button>
           </div>
 
@@ -96,6 +129,14 @@ function RoomLanding() {
               Join existing room
             </label>
             <div className="mt-3 flex flex-col gap-3">
+              <input
+                className="h-11 rounded border border-zinc-300 bg-zinc-50 px-3 text-base text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-zinc-700 dark:bg-neutral-950 dark:text-zinc-50"
+                id="user-name"
+                maxLength={40}
+                onChange={(event) => setUserName(event.target.value)}
+                placeholder="Your name"
+                value={userName}
+              />
               <input
                 className="h-11 rounded border border-zinc-300 bg-zinc-50 px-3 text-base text-zinc-950 outline-none transition placeholder:text-zinc-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-zinc-700 dark:bg-neutral-950 dark:text-zinc-50"
                 id="room-id"
@@ -115,6 +156,19 @@ function RoomLanding() {
           </form>
         </section>
       </div>
+
+      {isCreateModalOpen ? (
+        <CreateRoomModal
+          error={error}
+          isCreating={isCreating}
+          language={language}
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreate={handleCreateRoom}
+          onLanguageChange={setLanguage}
+          onUserNameChange={setUserName}
+          userName={userName}
+        />
+      ) : null}
     </main>
   )
 }

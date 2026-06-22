@@ -12,8 +12,33 @@ pool.on('error', (error) => {
   console.error('Unexpected Postgres client error', error)
 })
 
+const HTML_BOILERPLATE = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+
+</body>
+</html>
+`
+
 const emptyDocumentState = () => {
   const ydoc = new Y.Doc()
+  const state = Buffer.from(Y.encodeStateAsUpdate(ydoc))
+  ydoc.destroy()
+  return state
+}
+
+const createInitialDocumentState = (language) => {
+  if (language !== 'html') {
+    return emptyDocumentState()
+  }
+
+  const ydoc = new Y.Doc()
+  ydoc.getText('html').insert(0, HTML_BOILERPLATE)
   const state = Buffer.from(Y.encodeStateAsUpdate(ydoc))
   ydoc.destroy()
   return state
@@ -24,28 +49,33 @@ const initDb = async () => {
     CREATE TABLE IF NOT EXISTS documents (
       room_id TEXT PRIMARY KEY,
       state BYTEA NOT NULL,
+      language TEXT NOT NULL DEFAULT 'html',
       updated_at TIMESTAMP DEFAULT now()
     );
+  `)
+  await pool.query(`
+    ALTER TABLE documents
+      ADD COLUMN IF NOT EXISTS language TEXT NOT NULL DEFAULT 'html';
   `)
 }
 
 const createRoomId = () => randomUUID().replace(/-/g, '').slice(0, 8)
 
-const createRoom = async () => {
+const createRoom = async ({ language = 'html' } = {}) => {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const roomId = createRoomId()
     const result = await pool.query(
       `
-        INSERT INTO documents (room_id, state)
-        VALUES ($1, $2)
+        INSERT INTO documents (room_id, state, language)
+        VALUES ($1, $2, $3)
         ON CONFLICT (room_id) DO NOTHING
-        RETURNING room_id;
+        RETURNING room_id, language;
       `,
-      [roomId, emptyDocumentState()],
+      [roomId, createInitialDocumentState(language), language],
     )
 
     if (result.rowCount === 1) {
-      return roomId
+      return result.rows[0]
     }
   }
 
@@ -54,11 +84,11 @@ const createRoom = async () => {
 
 const roomExists = async (roomId) => {
   const result = await pool.query(
-    'SELECT 1 FROM documents WHERE room_id = $1 LIMIT 1;',
+    'SELECT room_id, language FROM documents WHERE room_id = $1 LIMIT 1;',
     [roomId],
   )
 
-  return result.rowCount > 0
+  return result.rows[0] ?? null
 }
 
 const loadDocumentState = async (roomId) => {

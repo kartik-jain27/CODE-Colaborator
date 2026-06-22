@@ -18,6 +18,7 @@ const {
 
 const PORT = Number(process.env.PORT || 3001)
 const WS_HEARTBEAT_INTERVAL_MS = Number(process.env.WS_HEARTBEAT_INTERVAL_MS || 2000)
+const SUPPORTED_LANGUAGES = new Set(['html', 'javascript'])
 
 const app = express()
 
@@ -30,8 +31,13 @@ app.get('/health', (_req, res) => {
 
 app.post('/api/rooms', async (_req, res, next) => {
   try {
-    const roomId = await createRoom()
-    res.status(201).json({ roomId })
+    const language = SUPPORTED_LANGUAGES.has(_req.body.language) ? _req.body.language : 'html'
+    const room = await createRoom({ language })
+
+    res.status(201).json({
+      roomId: room.room_id,
+      language: room.language,
+    })
   } catch (error) {
     next(error)
   }
@@ -39,8 +45,18 @@ app.post('/api/rooms', async (_req, res, next) => {
 
 app.get('/api/rooms/:id', async (req, res, next) => {
   try {
-    const exists = await roomExists(req.params.id)
-    res.status(exists ? 200 : 404).json({ roomId: req.params.id, exists })
+    const room = await roomExists(req.params.id)
+
+    if (!room) {
+      res.status(404).json({ roomId: req.params.id, exists: false })
+      return
+    }
+
+    res.status(200).json({
+      roomId: room.room_id,
+      language: room.language,
+      exists: true,
+    })
   } catch (error) {
     next(error)
   }

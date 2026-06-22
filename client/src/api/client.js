@@ -10,10 +10,11 @@ const parseResponse = async (response) => {
   return data
 }
 
-export const createRoom = async () => {
+export const createRoom = async ({ language } = {}) => {
   const response = await fetch(`${API_URL}/api/rooms`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ language }),
   })
 
   return parseResponse(response)

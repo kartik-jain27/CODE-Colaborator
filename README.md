@@ -1,26 +1,31 @@
 # CODE Colaborator
 
-CODE Colaborator is a real-time collaborative text editor built with React, CodeMirror 6, Yjs, and a Node WebSocket sync server. It is a learning-focused project for understanding WebSocket architecture, awareness/presence, and CRDT-based synchronization. It is not a code execution sandbox and intentionally does not include code execution, authentication, or user accounts.
+CODE Colaborator is a real-time collaborative coding room built with React, CodeMirror 6, Yjs, and a Node WebSocket sync server. It is a learning-focused project for understanding WebSocket architecture, Yjs awareness/presence, and CRDT-based synchronization.
 
-Yjs represents shared document changes as CRDT updates, which means clients can apply edits in different orders and still converge on the same document state. The `y-websocket` server relays those updates and awareness messages between clients, while Postgres stores the encoded Yjs document state so rooms can recover after a server restart.
+Yjs represents shared edits as CRDT updates, so multiple clients can type at the same time and still converge on the same document state. The `y-websocket` server relays document updates and awareness messages, while Postgres stores the encoded Yjs document state so rooms can recover after a server restart.
 
 ## Current App State
 
-The MVP is implemented, committed to Git, and builds successfully for local development.
+The app currently supports two room types:
 
-- Landing page at `/` for creating or joining rooms.
-- Editor route at `/room/:roomId`.
-- CodeMirror 6 editor bound to a shared `Y.Text`.
-- `y-websocket` server using `setupWSConnection` from `y-websocket/bin/utils`.
-- Room API with `POST /api/rooms`, `GET /api/rooms/:id`, and `/health`.
-- Postgres persistence for encoded Yjs document state in a `documents` table.
-- Debounced document saves after edits.
-- Yjs awareness presence with generated anonymous names and colored avatars.
-- Copyable room ID and share URL controls.
+- **HTML/CSS/JS**: separate collaborative tabs for HTML, CSS, and JavaScript, with a live browser preview.
+- **JavaScript**: one collaborative JavaScript editor with console-style output captured from a sandboxed browser iframe.
 
-Known local requirement: the backend needs Postgres running and `DATABASE_URL` pointed at a valid database before `npm run dev` can start successfully.
+The create-room flow asks only for:
 
-Deployment status: deployed with the backend on Railway and the frontend on Vercel.
+- Username.
+- Language.
+
+The editor includes:
+
+- Route-based rooms at `/room/:roomId`.
+- Copyable room ID and share URL.
+- Connection status indicator.
+- Yjs awareness presence with user avatars and colored collaborative cursors.
+- A visible local CodeMirror cursor tuned for the dark editor theme.
+- Browser-side output preview. There is no server-side code execution.
+
+New HTML/CSS/JS rooms seed the HTML tab with a basic HTML document skeleton. CSS and JavaScript tabs start empty.
 
 ## Tech Stack
 
@@ -38,14 +43,18 @@ server/
 client/
   src/
     App.jsx
+    api/
+      client.js
     components/
+      CreateRoomModal.jsx
       Editor.jsx
+      OutputPanel.jsx
       RoomLanding.jsx
       UserPresence.jsx
     hooks/
       useYjsDoc.js
-    api/
-      client.js
+    lib/
+      languages.js
 ```
 
 ## Setup
@@ -73,14 +82,14 @@ cp server/.env.example server/.env
 cp client/.env.example client/.env
 ```
 
-Update `server/.env` if your Postgres username, password, host, port, or database name is different:
+Set the backend env:
 
 ```sh
 PORT=3001
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/collab_editor
 ```
 
-The default client env points HTTP and WebSocket traffic at the same backend port:
+Set the frontend env. The API and WebSocket server share the same backend port:
 
 ```sh
 VITE_API_URL=http://localhost:3001
@@ -91,7 +100,7 @@ Start the backend in one terminal:
 
 ```sh
 cd server
-npm run dev
+npm start
 ```
 
 Start the frontend in another terminal:
@@ -103,28 +112,34 @@ npm run dev
 
 Open the Vite URL, usually `http://localhost:5173`.
 
-## Test Collaboration
+## Test Locally
 
-Open the Vite URL in your browser, create a new room, then open the same room URL in a second tab. Type in either tab and the other tab should update in real time. The top bar shows connection status, the room ID, a share button, and connected users through Yjs awareness.
+1. Open the Vite app.
+2. Click **Create New Room**.
+3. Enter your username and choose **HTML/CSS/JS** or **JavaScript**.
+4. Open the same room URL in a second tab.
+5. Type in either tab and confirm the other tab updates in real time.
+
+For HTML/CSS/JS rooms, edit each tab and confirm the output panel updates. For JavaScript rooms, use `console.log()` and confirm the output appears in the console-style preview.
 
 ## Verification
 
-These checks pass in the current codebase:
+These checks should pass before committing or deploying:
 
 ```sh
 cd client
-npm run build
 npm run lint
+npm run build
 
 cd ../server
 node --check index.js
 node --check db.js
 ```
 
-Production smoke test:
+Optional backend smoke test:
 
 ```sh
-curl https://code-colaborator-production.up.railway.app/health
+curl http://localhost:3001/health
 ```
 
 Expected response:
@@ -133,8 +148,6 @@ Expected response:
 {"ok":true}
 ```
 
-Then open the Vercel app, create a room, open the same room URL in another tab, and confirm edits sync both ways.
-
 ## Railway Backend Deployment
 
 Deploy the backend as a Railway service with the service **Root Directory** set to:
@@ -142,8 +155,6 @@ Deploy the backend as a Railway service with the service **Root Directory** set 
 ```txt
 server
 ```
-
-With that root directory, Railway will build from `server/package.json` and run the backend app directly.
 
 Use these commands if Railway asks for explicit commands:
 
@@ -159,14 +170,7 @@ DATABASE_URL=<your Railway or Neon Postgres connection string>
 NODE_ENV=production
 ```
 
-Railway provides `PORT` automatically. Do not set `WS_PORT`; the Express API and Yjs WebSocket server share the single Railway service port.
-
-After deployment, use the generated Railway domain for both client variables:
-
-```sh
-VITE_API_URL=https://code-colaborator-production.up.railway.app
-VITE_WS_URL=wss://code-colaborator-production.up.railway.app
-```
+Railway provides `PORT` automatically. Do not set `WS_PORT`; the Express API and Yjs WebSocket server share one HTTP server and one port.
 
 ## Vercel Frontend Deployment
 
@@ -194,8 +198,7 @@ The client includes `client/vercel.json` so direct visits and refreshes on room 
 
 ## Out of Scope
 
-- Code execution.
-- Syntax highlighting beyond CodeMirror defaults.
+- Server-side code execution.
 - User authentication.
 - Permissions or private rooms.
 - Production scaling beyond a single WebSocket server.
