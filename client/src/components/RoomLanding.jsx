@@ -23,7 +23,7 @@ const extractRoomId = (value) => {
 function RoomLanding() {
   const navigate = useNavigate()
   const [roomInput, setRoomInput] = useState('')
-  const [userName, setUserName] = useState(() => localStorage.getItem(USER_NAME_STORAGE_KEY) || '')
+  const [userName, setUserName] = useState('')
   const [language, setLanguage] = useState('html')
   const [error, setError] = useState('')
   const [isCreating, setIsCreating] = useState(false)
@@ -104,6 +104,9 @@ function RoomLanding() {
               <h1 className="max-w-3xl text-4xl font-semibold tracking-normal text-zinc-950 dark:text-white sm:text-6xl">
                 Collaborative text rooms that sync as you type.
               </h1>
+              <p className="text-sm font-medium uppercase tracking-[0.18em] text-zinc-500 dark:text-zinc-400">
+                Made by Kartik
+              </p>
               <p className="max-w-2xl text-lg leading-8 text-zinc-600 dark:text-zinc-300">
                 Create a room, share the URL, and edit the same document from multiple tabs or devices.
               </p>

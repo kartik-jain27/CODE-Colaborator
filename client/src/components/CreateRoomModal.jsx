@@ -34,7 +34,7 @@ function CreateRoomModal({
               className="mt-2 h-11 w-full rounded border border-zinc-700 bg-neutral-950 px-3 text-zinc-50 outline-none transition placeholder:text-zinc-500 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20"
               maxLength={40}
               onChange={(event) => onUserNameChange(event.target.value)}
-              placeholder="Kartik"
+              placeholder="Your display name"
               value={userName}
             />
           </label>
